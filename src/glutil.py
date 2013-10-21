@@ -12,6 +12,12 @@ from pyglet.gl import glLineWidth, glEnable, glColor4f,glColor3f, glBegin,\
 
 from pyglet.graphics import draw
 
+def hexagon(x,y,size):
+    
+    points = (0.0,1.0,0.87,0.5,0.87,-0.5,0.0,-1.0,-0.87,-0.5,-0.87,0.5)
+    tris = (0,1,5, 1,2,4, 1,5,4 , 4,3,2   )   
+    
+    return tuple(p * size for p in points), tris
 
 def line(a, b, color=(1.0,1.0,1.0), width=1, aa=False, alpha=1.0):
     """

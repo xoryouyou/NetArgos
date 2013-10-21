@@ -46,7 +46,8 @@ class NetArgos(window.Window):
        
         self.version = 0.1
         self.debug = False
-        self.batch = Batch()
+        self.localNodeData = {}
+        self.localNodePosition = None
         
         try:
             opts, args = getopt.getopt( sys.argv[1:],
@@ -90,6 +91,9 @@ class NetArgos(window.Window):
 
 
         super(NetArgos, self).__init__(xres, yres)
+        self.batch = Batch()
+        self.labelBatch = Batch()
+      
         
         try:
             self.geoIP = GeoIP(self.geodbfile,MEMORY_CACHE)
@@ -207,6 +211,12 @@ class NetArgos(window.Window):
 
     def update(self, dt):
         new = [ x for x in getConnections() if x["remote"]  not in [y.data["remote"] for y in self.nodes if y.data["status"] != "CLOSE WAIT" ]]
+        
+        for i,n in enumerate(self.nodes):
+            if n not in new:
+                self.nodes[i].label.delete()
+                self.nodes[i].hoverLabel.delete()
+                self.nodes.pop(i)
         if self.debug:
             print("New Connections: %i" %(len(new)))
         for n in new:
@@ -220,11 +230,14 @@ class NetArgos(window.Window):
             else:
                 data = dict(n.items() + location.items())
                 pos = self.mercator.screenCoords(data['latitude'], data['longitude'])
-                self.nodes.append(Node(data,pos))
+                self.nodes.append(Node(data,pos,self.labelBatch))
+                
     
         if not self.foundLocalIp:
             self.logLabel.text = 'Trying to find external IP addres..'
         else:
+            if not self.localNode:
+                self.localNode = Node(self.localNodeData,self.localNodePos,self.labelBatch)
             self.localNode.connections = self.nodes
 
         self.netstatString = ""
@@ -238,7 +251,7 @@ class NetArgos(window.Window):
 
 
     def IpCallback(self,arg):
-
+        
         if arg != None:
             self.localIp = arg
             if self.debug:
@@ -257,10 +270,10 @@ class NetArgos(window.Window):
                 data['name'] = 'LOCALHOST'
                 data['status'] = 'LOCALHOST'
                 pos = self.mercator.screenCoords(data['latitude'],data['longitude'])
-                self.localNode = Node(data,pos)
-                self.camera.worldProjection()
-                pos = model_to_screen((self.localNode.position[0], self.localNode.position[1], 0.0) )
-                self.localNode.onScreen = (pos[0].value, pos[1].value)   
+                
+                self.localNodeData = data
+                self.localNodePos = pos
+
                 self.logLabel.text = ""
         else:
             self.logLabel.text = "Cant locate local IP Address"
@@ -275,10 +288,12 @@ class NetArgos(window.Window):
             x, y = n.onScreen
             if(x-self.mousePos[0])**2 + (y-self.mousePos[1])**2 < 12**2:
                 self.nodes[i].hover = True
+                self.nodes[i].hoverLabel.text = self.nodes[i].hoverString
                 foundCount+=1
                 foundNodes.append(i)
             else:
                 self.nodes[i].hover = False
+                self.nodes[i].hoverLabel.text = ""
                 self.nodes[i].expanded = False
         if self.localNode != None:
             x, y = self.localNode.onScreen
@@ -294,7 +309,13 @@ class NetArgos(window.Window):
             
             for i,n in enumerate(foundNodes):
                 if not self.nodes[n].expanded:
-                    self.nodes[n].onScreen = (self.nodes[n].onScreen[0]+cos(offset*i)*25*self.camera.zoom, self.nodes[n].onScreen[1]+sin(offset*i)*25*self.camera.zoom )
+                    xoffset = cos(offset*i)*25*self.camera.zoom
+                    yoffset = sin(offset*i)*25*self.camera.zoom
+                    self.nodes[n].onScreen = (self.nodes[n].onScreen[0]+xoffset, self.nodes[n].onScreen[1]+yoffset )
+                    self.nodes[n].label.x += xoffset
+                    self.nodes[n].label.y += yoffset
+                    self.nodes[n].hoverLabel.x += xoffset
+                    self.nodes[n].hoverLabel.y += yoffset
                     self.nodes[n].expanded = True
         elif foundCount == 1:
             self.hovering = True
@@ -312,11 +333,17 @@ class NetArgos(window.Window):
         for i,n in enumerate(self.nodes):
             pos = model_to_screen((n.position[0], n.position[1], 0.0))
             self.nodes[i].onScreen = (pos[0].value, pos[1].value)
+            self.nodes[i].label.x = pos[0].value
+            self.nodes[i].label.y = pos[1].value+10#
+            self.nodes[i].hoverLabel.x = pos[0].value+20
+            self.nodes[i].hoverLabel.y = pos[1].value
             
         if self.localNode != None:
             pos = model_to_screen((self.localNode.position[0], self.localNode.position[1], 0.0) )
             self.localNode.onScreen = (pos[0].value, pos[1].value)   
-
+            self.localNode.label.x = pos[0].value
+            self.localNode.label.y = pos[1].value+10
+            
     def drawNetstat(self):
         self.netstatLabel.draw()
     
@@ -331,7 +358,7 @@ class NetArgos(window.Window):
         for n in self.nodes:
             n.draw()
 
-        
+        self.labelBatch.draw()
 
         if self.localNode != None:
             self.localNode.draw()
