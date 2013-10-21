@@ -25,7 +25,7 @@ def getExternalIp():
     """
     
     tries = 3
-    delay = 2
+    delay = 5
     setdefaulttimeout(delay)
     while tries:
         try:
