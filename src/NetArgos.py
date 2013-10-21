@@ -44,6 +44,10 @@ class NetArgos(window.Window):
         self.fontname = "Courier"
         self.fontsize = 8
        
+        self.version = 0.1
+        self.debug = False
+        self.batch = Batch()
+        
         try:
             opts, args = getopt.getopt( sys.argv[1:],
                                         'i:vd',
@@ -68,7 +72,7 @@ class NetArgos(window.Window):
             elif o in ('-v','--version'):
                 print("%s: Version %s" %(sys.argv[0],self.version))
                 sys.exit(0)
-            elif o in ('d','--debug'):
+            elif o in ('-d','--debug'):
                 self.debug = True
             elif o == '--geodb':
                 self.geodbfile = a
@@ -86,8 +90,6 @@ class NetArgos(window.Window):
 
 
         super(NetArgos, self).__init__(xres, yres)
-        self.version = 0.1
-        self.debug = False
         
         try:
             self.geoIP = GeoIP(self.geodbfile,MEMORY_CACHE)
@@ -98,7 +100,7 @@ class NetArgos(window.Window):
 
         self.pool = ThreadPool(processes=1)
         self.fps = clock.ClockDisplay()
-        self.batch = Batch()
+
 
         self.loadPaths('../data/borders-50-batched.bin',(0,100,0))
         self.loadPaths('../data/coast-50-batched.bin',(0,255,0))
@@ -115,6 +117,18 @@ class NetArgos(window.Window):
                                     y=self.height-20,
                                     multiline=True,
                                     width=14*200)
+
+        self.netstatString = ""
+        self.netstatLabel = text.Label( "",
+                            font_name=self.fontname,
+                            font_size=self.fontsize,
+                            x=0,
+                            y=self.height-10,
+                            multiline=True,
+                            width=600)
+        
+
+        
         if self.foundLocalIp:
             self.IpCallback(self.localIp)
         else:
@@ -212,7 +226,16 @@ class NetArgos(window.Window):
             self.logLabel.text = 'Trying to find external IP addres..'
         else:
             self.localNode.connections = self.nodes
+
+        self.netstatString = ""
+        for n in self.nodes:
+            self.netstatString += n.infoString+"\n"
+        self.netstatLabel.text = self.netstatString
+
+
         self.calcPositions() 
+
+
 
     def IpCallback(self,arg):
 
@@ -289,22 +312,13 @@ class NetArgos(window.Window):
         for i,n in enumerate(self.nodes):
             pos = model_to_screen((n.position[0], n.position[1], 0.0))
             self.nodes[i].onScreen = (pos[0].value, pos[1].value)
+            
         if self.localNode != None:
             pos = model_to_screen((self.localNode.position[0], self.localNode.position[1], 0.0) )
             self.localNode.onScreen = (pos[0].value, pos[1].value)   
 
     def drawNetstat(self):
-        info = ""
-        for n in self.nodes:
-            info += n.toString()+"\n"
-        label = text.Label( info,
-                            font_name=self.fontname,
-                            font_size=self.fontsize,
-                            x=0,
-                            y=self.height-10,
-                            multiline=True,
-                            width=600)
-        label.draw()
+        self.netstatLabel.draw()
     
     def on_draw(self):
         glClear(GL_COLOR_BUFFER_BIT)
@@ -317,12 +331,15 @@ class NetArgos(window.Window):
         for n in self.nodes:
             n.draw()
 
+        
+
         if self.localNode != None:
             self.localNode.draw()
        
         if self.drawNetstatOverlay:
             self.drawNetstat()
-       # self.fps.draw()
+        if self.debug:
+            self.fps.draw()
         self.logLabel.draw()
         
         
