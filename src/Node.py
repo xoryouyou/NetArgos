@@ -21,6 +21,8 @@ class Node(object):
         :ivar size: default 8
         """
         self.data = data
+        for key in [key for key in self.data.keys() if self.data[key] == ""]:
+            self.data[key] = None
         self.position = position
         self.onScreen = (0.0, 0.0)
         self.color = color
@@ -36,7 +38,7 @@ class Node(object):
         :returns: A string containing the geolocation information to draw the Label above the Node
         """
         return (str(self.data["city"]).decode('latin-1')+","+\
-                str(self.data["region"]).decode('latin-1')+","+\
+                str(self.data["region_name"]).decode('latin-1')+","+\
                 str(self.data["country_code"]).decode('latin-1') )
 
     def toString(self):
