@@ -7,7 +7,7 @@ import getopt
 import sys
 from math import cos, sin, pi
 
-import GeoIP
+from pygeoip import GeoIP, MEMORY_CACHE
 import cPickle as pickle
 
 from glutil import line, circle, screen_to_model, model_to_screen
@@ -21,7 +21,15 @@ class NetArgos(window.Window):
     """
      The main class which inherits the pyglet.window.Window class.
     """
-    def __init__(self, xres=1920, yres=1080):
+    def __init__(self, xres=1280, yres=720):
+
+        if sys.version_info < ( 2,7):
+            print("Please use python 2.7.x , python 3.x preferred")
+            self.usage()
+            sys.exit(1)
+        elif sys.version_info <  (3, 2):
+            print("[-] Warning NetArgos is made under python 3.2, please keep in mind when bugs occur.")
+
 
         self.expandMode = False
         self.hovering = False
@@ -45,7 +53,8 @@ class NetArgos(window.Window):
                                         'geodb=',
                                         'resolution='])
                                         
-        except getopt.GetoptError, e:
+        except getopt.GetoptError as e:
+            print(e)
             self.usage()
             
         for o,a in opts:
@@ -81,8 +90,8 @@ class NetArgos(window.Window):
         self.debug = False
         
         try:
-            self.geoIP = GeoIP.open(self.geodbfile,GeoIP.GEOIP_MEMORY_CACHE)
-        except Exception, e:
+            self.geoIP = GeoIP(self.geodbfile,MEMORY_CACHE)
+        except Exception as e:
             print('[-] Failed loading %s", %s' %(self.geodbfile, e))
             exit(1)
 
@@ -212,7 +221,6 @@ class NetArgos(window.Window):
             if self.debug:
                 print('LocalIP %s' % self.localIp) 
 
-           # self.foundLocalIp = True
             self.foundLocalIp = True
             data = self.geoIP.record_by_addr(self.localIp)
             if data != None:
@@ -259,7 +267,6 @@ class NetArgos(window.Window):
         if foundCount > 1:
             self.expandMode = True
 
-            print(foundNodes)
             offset =  (2.0*pi) /len(foundNodes) 
             
             for i,n in enumerate(foundNodes):
