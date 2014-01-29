@@ -7,7 +7,7 @@ import getopt
 import sys
 from math import cos, sin, pi
 
-from pygeoip import GeoIP, MEMORY_CACHE
+import GeoIP
 import cPickle as pickle
 
 from glutil import line, circle, screen_to_model, model_to_screen
@@ -21,15 +21,7 @@ class NetArgos(window.Window):
     """
      The main class which inherits the pyglet.window.Window class.
     """
-    def __init__(self, xres=1280, yres=720):
-
-        if sys.version_info < ( 2,7):
-            print("Please use python 2.7.x , python 3.x preferred")
-            self.usage()
-            sys.exit(1)
-        elif sys.version_info <  (3, 2):
-            print("[-] Warning NetArgos is made under python 3.2, please keep in mind when bugs occur.")
-
+    def __init__(self, xres=1920, yres=1080):
 
         self.expandMode = False
         self.hovering = False
@@ -41,14 +33,16 @@ class NetArgos(window.Window):
         self.mousePos= (0, 0)
         self.version = 0.1
         self.geodbfile = '../data/GeoLiteCity.dat'
-        self.fontname = "Courier"
+#        pyglet.font.add_file("../data/Anonymous Pro.ttf")
+        self.fontname="Droid Sans Mono"
+        self.font= pyglet.font.load(self.fontname)
+      
         self.fontsize = 8
-       
-        self.version = 0.1
-        self.debug = False
-        self.localNodeData = {}
-        self.localNodePosition = None
-        
+
+        display = window.get_platform().get_default_display()
+        screen = display.get_default_screen()
+        xres ,yres  = screen.width, screen.height
+
         try:
             opts, args = getopt.getopt( sys.argv[1:],
                                         'i:vd',
@@ -58,8 +52,7 @@ class NetArgos(window.Window):
                                         'geodb=',
                                         'resolution='])
                                         
-        except getopt.GetoptError as e:
-            print(e)
+        except getopt.GetoptError, e:
             self.usage()
             
         for o,a in opts:
@@ -73,7 +66,7 @@ class NetArgos(window.Window):
             elif o in ('-v','--version'):
                 print("%s: Version %s" %(sys.argv[0],self.version))
                 sys.exit(0)
-            elif o in ('-d','--debug'):
+            elif o in ('d','--debug'):
                 self.debug = True
             elif o == '--geodb':
                 self.geodbfile = a
@@ -91,20 +84,19 @@ class NetArgos(window.Window):
 
 
         super(NetArgos, self).__init__(xres, yres)
-        self.batch = Batch()
-        self.labelBatch = Batch()
-      
+        self.version = 0.1
+        self.debug = False
         
         try:
-            self.geoIP = GeoIP(self.geodbfile,MEMORY_CACHE)
-        except Exception as e:
+            self.geoIP = GeoIP.open(self.geodbfile,GeoIP.GEOIP_MEMORY_CACHE)
+        except Exception, e:
             print('[-] Failed loading %s", %s' %(self.geodbfile, e))
             exit(1)
 
 
         self.pool = ThreadPool(processes=1)
         self.fps = clock.ClockDisplay()
-
+        self.batch = Batch()
 
         self.loadPaths('../data/borders-50-batched.bin',(0,100,0))
         self.loadPaths('../data/coast-50-batched.bin',(0,255,0))
@@ -121,18 +113,6 @@ class NetArgos(window.Window):
                                     y=self.height-20,
                                     multiline=True,
                                     width=14*200)
-
-        self.netstatString = ""
-        self.netstatLabel = text.Label( "",
-                            font_name=self.fontname,
-                            font_size=self.fontsize,
-                            x=0,
-                            y=self.height-10,
-                            multiline=True,
-                            width=600)
-        
-
-        
         if self.foundLocalIp:
             self.IpCallback(self.localIp)
         else:
@@ -153,7 +133,6 @@ class NetArgos(window.Window):
                     self.camera.x = width
                 if self.camera.x + width > self.width:
                     self.camera.x = self.width -width
-                if self.camera.y - height < 0:
                     self.camera.y = height
                 if self.camera.y +height > self.height:
                     self.camera.y = self.height-height
@@ -211,12 +190,6 @@ class NetArgos(window.Window):
 
     def update(self, dt):
         new = [ x for x in getConnections() if x["remote"]  not in [y.data["remote"] for y in self.nodes if y.data["status"] != "CLOSE WAIT" ]]
-        
-        for i,n in enumerate(self.nodes):
-            if n not in new:
-                self.nodes[i].label.delete()
-                self.nodes[i].hoverLabel.delete()
-                self.nodes.pop(i)
         if self.debug:
             print("New Connections: %i" %(len(new)))
         for n in new:
@@ -230,33 +203,22 @@ class NetArgos(window.Window):
             else:
                 data = dict(n.items() + location.items())
                 pos = self.mercator.screenCoords(data['latitude'], data['longitude'])
-                self.nodes.append(Node(data,pos,self.labelBatch))
-                
+                self.nodes.append(Node(data,pos))
     
         if not self.foundLocalIp:
             self.logLabel.text = 'Trying to find external IP addres..'
         else:
-            if not self.localNode:
-                self.localNode = Node(self.localNodeData,self.localNodePos,self.labelBatch)
             self.localNode.connections = self.nodes
-
-        self.netstatString = ""
-        for n in self.nodes:
-            self.netstatString += n.infoString+"\n"
-        self.netstatLabel.text = self.netstatString
-
-
         self.calcPositions() 
 
-
-
     def IpCallback(self,arg):
-        
+
         if arg != None:
             self.localIp = arg
             if self.debug:
                 print('LocalIP %s' % self.localIp) 
 
+           # self.foundLocalIp = True
             self.foundLocalIp = True
             data = self.geoIP.record_by_addr(self.localIp)
             if data != None:
@@ -270,10 +232,10 @@ class NetArgos(window.Window):
                 data['name'] = 'LOCALHOST'
                 data['status'] = 'LOCALHOST'
                 pos = self.mercator.screenCoords(data['latitude'],data['longitude'])
-                
-                self.localNodeData = data
-                self.localNodePos = pos
-
+                self.localNode = Node(data,pos)
+                self.camera.worldProjection()
+                pos = model_to_screen((self.localNode.position[0], self.localNode.position[1], 0.0) )
+                self.localNode.onScreen = (pos[0].value, pos[1].value)   
                 self.logLabel.text = ""
         else:
             self.logLabel.text = "Cant locate local IP Address"
@@ -288,12 +250,10 @@ class NetArgos(window.Window):
             x, y = n.onScreen
             if(x-self.mousePos[0])**2 + (y-self.mousePos[1])**2 < 12**2:
                 self.nodes[i].hover = True
-                self.nodes[i].hoverLabel.text = self.nodes[i].hoverString
                 foundCount+=1
                 foundNodes.append(i)
             else:
                 self.nodes[i].hover = False
-                self.nodes[i].hoverLabel.text = ""
                 self.nodes[i].expanded = False
         if self.localNode != None:
             x, y = self.localNode.onScreen
@@ -309,13 +269,7 @@ class NetArgos(window.Window):
             
             for i,n in enumerate(foundNodes):
                 if not self.nodes[n].expanded:
-                    xoffset = cos(offset*i)*25*self.camera.zoom
-                    yoffset = sin(offset*i)*25*self.camera.zoom
-                    self.nodes[n].onScreen = (self.nodes[n].onScreen[0]+xoffset, self.nodes[n].onScreen[1]+yoffset )
-                    self.nodes[n].label.x += xoffset
-                    self.nodes[n].label.y += yoffset
-                    self.nodes[n].hoverLabel.x += xoffset
-                    self.nodes[n].hoverLabel.y += yoffset
+                    self.nodes[n].onScreen = (self.nodes[n].onScreen[0]+cos(offset*i)*25*self.camera.zoom, self.nodes[n].onScreen[1]+sin(offset*i)*25*self.camera.zoom )
                     self.nodes[n].expanded = True
         elif foundCount == 1:
             self.hovering = True
@@ -333,19 +287,24 @@ class NetArgos(window.Window):
         for i,n in enumerate(self.nodes):
             pos = model_to_screen((n.position[0], n.position[1], 0.0))
             self.nodes[i].onScreen = (pos[0].value, pos[1].value)
-            self.nodes[i].label.x = pos[0].value
-            self.nodes[i].label.y = pos[1].value+10#
-            self.nodes[i].hoverLabel.x = pos[0].value+20
-            self.nodes[i].hoverLabel.y = pos[1].value
-            
         if self.localNode != None:
             pos = model_to_screen((self.localNode.position[0], self.localNode.position[1], 0.0) )
             self.localNode.onScreen = (pos[0].value, pos[1].value)   
-            self.localNode.label.x = pos[0].value
-            self.localNode.label.y = pos[1].value+10
-            
+
     def drawNetstat(self):
-        self.netstatLabel.draw()
+        info = ""
+        for n in self.nodes:
+            info += "%-80s" % (n.toString()+"\n")
+        label = text.Label( info,
+                            font_name=self.fontname,
+                            font_size=self.fontsize,
+                            x=0,
+                            y=self.height-10,
+                            multiline=True,
+                            width=700
+                            )
+        label.set_style("background_color",(255,255,255,255))
+        label.draw()
     
     def on_draw(self):
         glClear(GL_COLOR_BUFFER_BIT)
@@ -358,15 +317,12 @@ class NetArgos(window.Window):
         for n in self.nodes:
             n.draw()
 
-        self.labelBatch.draw()
-
         if self.localNode != None:
             self.localNode.draw()
        
         if self.drawNetstatOverlay:
             self.drawNetstat()
-        if self.debug:
-            self.fps.draw()
+       # self.fps.draw()
         self.logLabel.draw()
         
         

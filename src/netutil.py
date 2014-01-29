@@ -1,3 +1,25 @@
+'''
+
+netutil.py: NetArgos (c) 2013 Kabelmaulwurf
+
+This file is part of NetArgos.
+
+NetArgos.py is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+NetArgos is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+'''
+
+
 """
     A collection of network utilities to gather information.
 """
@@ -25,7 +47,7 @@ def getExternalIp():
     """
     
     tries = 3
-    delay = 5
+    delay = 2
     setdefaulttimeout(delay)
     while tries:
         try:
@@ -67,5 +89,5 @@ def getConnections():
                          'status':str(c.status).center(15),
                          'pid':p.pid,
                          'name':name[:15]}
-                ret.append(d)
+                    ret.append(d)
     return ret
